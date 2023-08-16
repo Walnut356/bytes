@@ -152,4 +152,10 @@ impl<T: Buf> Buf for Take<T> {
         self.limit -= len;
         r
     }
+
+    fn advance_unchecked(&mut self, cnt: usize) {
+        self.inner.advance(cnt);
+        self.limit -= cnt;
+    }
+
 }

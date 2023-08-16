@@ -49,6 +49,38 @@ macro_rules! buf_get_impl {
     }};
 }
 
+macro_rules! buf_get_impl_unchecked {
+    ($this:ident, $typ:tt::$conv:tt) => {{
+        const SIZE: usize = mem::size_of::<$typ>();
+        // try to convert directly from the bytes
+        // this Option<ret> trick is to avoid keeping a borrow on self
+        // when advance() is called (mut borrow) and to call bytes() only once
+        let ret = unsafe { $this.chunk().get_unchecked(..SIZE) };
+
+        let result = unsafe { $typ::$conv(*(ret as *const _ as *const [_; SIZE])) };
+
+        // if the direct conversion was possible, advance and return
+        $this.advance_unchecked(SIZE);
+        return result;
+    }};
+    (le => $this:ident, $typ:tt, $len_to_read:expr) => {{
+        debug_assert!(mem::size_of::<$typ>() >= $len_to_read);
+
+        // The same trick as above does not improve the best case speed.
+        // It seems to be linked to the way the method is optimised by the compiler
+        let mut buf = [0; (mem::size_of::<$typ>())];
+        $this.copy_to_slice_unchecked(&mut buf[..($len_to_read)]);
+        return $typ::from_le_bytes(buf);
+    }};
+    (be => $this:ident, $typ:tt, $len_to_read:expr) => {{
+        debug_assert!(mem::size_of::<$typ>() >= $len_to_read);
+
+        let mut buf = [0; (mem::size_of::<$typ>())];
+        $this.copy_to_slice(&mut buf[mem::size_of::<$typ>() - ($len_to_read)..]);
+        return $typ::from_be_bytes(buf);
+    }};
+}
+
 /// Read bytes from a buffer.
 ///
 /// A buffer stores bytes in memory such that read operations are infallible.
@@ -206,6 +238,8 @@ pub trait Buf {
     /// A call with `cnt == 0` should never panic and be a no-op.
     fn advance(&mut self, cnt: usize);
 
+    fn advance_unchecked(&mut self, cnt: usize);
+
     /// Returns true if there are any more bytes to consume
     ///
     /// This is equivalent to `self.remaining() != 0`.
@@ -269,6 +303,25 @@ pub trait Buf {
         }
     }
 
+    fn copy_to_slice_unchecked(&mut self, dst: &mut [u8]) {
+        let mut off = 0;
+
+        while off < dst.len() {
+            let cnt;
+
+            unsafe {
+                let src = self.chunk();
+                cnt = cmp::min(src.len(), dst.len() - off);
+
+                ptr::copy_nonoverlapping(src.as_ptr(), dst[off..].as_mut_ptr(), cnt);
+
+                off += cnt;
+            }
+
+            self.advance(cnt);
+        }
+    }
+
     /// Gets an unsigned 8 bit integer from `self`.
     ///
     /// The current position is advanced by 1.
@@ -286,6 +339,13 @@ pub trait Buf {
     ///
     /// This function panics if there is no more remaining data in `self`.
     fn get_u8(&mut self) -> u8 {
+        assert!(self.remaining() >= 1);
+        let ret = self.chunk()[0];
+        self.advance(1);
+        ret
+    }
+
+    fn get_u8_unchecked(&mut self) -> u8 {
         assert!(self.remaining() >= 1);
         let ret = self.chunk()[0];
         self.advance(1);
@@ -315,6 +375,12 @@ pub trait Buf {
         ret
     }
 
+    fn get_i8_unchecked(&mut self) -> i8 {
+        let ret = self.chunk()[0] as i8;
+        self.advance(1);
+        ret
+    }
+
     /// Gets an unsigned 16 bit integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by 2.
@@ -335,6 +401,10 @@ pub trait Buf {
         buf_get_impl!(self, u16::from_be_bytes);
     }
 
+    fn get_u16_unchecked(&mut self) -> u16 {
+        buf_get_impl_unchecked!(self, u16::from_be_bytes);
+    }
+
     /// Gets an unsigned 16 bit integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by 2.
@@ -353,6 +423,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_u16_le(&mut self) -> u16 {
         buf_get_impl!(self, u16::from_le_bytes);
+    }
+
+    fn get_u16_le_unchecked(&mut self) -> u16 {
+        buf_get_impl_unchecked!(self, u16::from_le_bytes);
     }
 
     /// Gets an unsigned 16 bit integer from `self` in native-endian byte order.
@@ -378,6 +452,10 @@ pub trait Buf {
         buf_get_impl!(self, u16::from_ne_bytes);
     }
 
+    fn get_u16_ne_unchecked(&mut self) -> u16 {
+        buf_get_impl_unchecked!(self, u16::from_ne_bytes);
+    }
+
     /// Gets a signed 16 bit integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by 2.
@@ -398,6 +476,10 @@ pub trait Buf {
         buf_get_impl!(self, i16::from_be_bytes);
     }
 
+    fn get_i16_unchecked(&mut self) -> i16 {
+        buf_get_impl_unchecked!(self, i16::from_be_bytes);
+    }
+
     /// Gets a signed 16 bit integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by 2.
@@ -416,6 +498,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_i16_le(&mut self) -> i16 {
         buf_get_impl!(self, i16::from_le_bytes);
+    }
+
+    fn get_i16_le_unchecked(&mut self) -> i16 {
+        buf_get_impl_unchecked!(self, i16::from_le_bytes);
     }
 
     /// Gets a signed 16 bit integer from `self` in native-endian byte order.
@@ -441,6 +527,10 @@ pub trait Buf {
         buf_get_impl!(self, i16::from_ne_bytes);
     }
 
+    fn get_i16_ne_unchecked(&mut self) -> i16 {
+        buf_get_impl_unchecked!(self, i16::from_ne_bytes);
+    }
+
     /// Gets an unsigned 32 bit integer from `self` in the big-endian byte order.
     ///
     /// The current position is advanced by 4.
@@ -461,6 +551,10 @@ pub trait Buf {
         buf_get_impl!(self, u32::from_be_bytes);
     }
 
+    fn get_u32_unchecked(&mut self) -> u32 {
+        buf_get_impl_unchecked!(self, u32::from_be_bytes);
+    }
+
     /// Gets an unsigned 32 bit integer from `self` in the little-endian byte order.
     ///
     /// The current position is advanced by 4.
@@ -479,6 +573,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_u32_le(&mut self) -> u32 {
         buf_get_impl!(self, u32::from_le_bytes);
+    }
+
+    fn get_u32_le_unchecked(&mut self) -> u32 {
+        buf_get_impl_unchecked!(self, u32::from_le_bytes);
     }
 
     /// Gets an unsigned 32 bit integer from `self` in native-endian byte order.
@@ -504,6 +602,10 @@ pub trait Buf {
         buf_get_impl!(self, u32::from_ne_bytes);
     }
 
+    fn get_u32_ne_unchecked(&mut self) -> u32 {
+        buf_get_impl_unchecked!(self, u32::from_ne_bytes);
+    }
+
     /// Gets a signed 32 bit integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by 4.
@@ -524,6 +626,21 @@ pub trait Buf {
         buf_get_impl!(self, i32::from_be_bytes);
     }
 
+    fn get_i32_unchecked(&mut self) -> i32 {
+
+        // try to convert directly from the bytes
+        // this Option<ret> trick is to avoid keeping a borrow on self
+        // when advance() is called (mut borrow) and to call bytes() only once
+        let ret = unsafe { self.chunk().get_unchecked(..4) };
+
+        let result = unsafe { i32::from_be_bytes(*(ret as *const _ as *const [_; 4])) };
+
+        // if the direct conversion was possible, advance and return
+        self.advance_unchecked(4);
+        return result;
+        // buf_get_impl_unchecked!(self, i32::from_be_bytes);
+    }
+
     /// Gets a signed 32 bit integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by 4.
@@ -542,6 +659,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_i32_le(&mut self) -> i32 {
         buf_get_impl!(self, i32::from_le_bytes);
+    }
+
+    fn get_i32_le_unchecked(&mut self) -> i32 {
+        buf_get_impl_unchecked!(self, i32::from_le_bytes);
     }
 
     /// Gets a signed 32 bit integer from `self` in native-endian byte order.
@@ -567,6 +688,10 @@ pub trait Buf {
         buf_get_impl!(self, i32::from_ne_bytes);
     }
 
+    fn get_i32_ne_unchecked(&mut self) -> i32 {
+        buf_get_impl_unchecked!(self, i32::from_ne_bytes);
+    }
+
     /// Gets an unsigned 64 bit integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by 8.
@@ -587,6 +712,10 @@ pub trait Buf {
         buf_get_impl!(self, u64::from_be_bytes);
     }
 
+    fn get_u64_unchecked(&mut self) -> u64 {
+        buf_get_impl_unchecked!(self, u64::from_be_bytes);
+    }
+
     /// Gets an unsigned 64 bit integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by 8.
@@ -605,6 +734,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_u64_le(&mut self) -> u64 {
         buf_get_impl!(self, u64::from_le_bytes);
+    }
+
+    fn get_u64_le_unchecked(&mut self) -> u64 {
+        buf_get_impl_unchecked!(self, u64::from_le_bytes);
     }
 
     /// Gets an unsigned 64 bit integer from `self` in native-endian byte order.
@@ -630,6 +763,10 @@ pub trait Buf {
         buf_get_impl!(self, u64::from_ne_bytes);
     }
 
+    fn get_u64_ne_unchecked(&mut self) -> u64 {
+        buf_get_impl_unchecked!(self, u64::from_ne_bytes);
+    }
+
     /// Gets a signed 64 bit integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by 8.
@@ -650,6 +787,10 @@ pub trait Buf {
         buf_get_impl!(self, i64::from_be_bytes);
     }
 
+    fn get_i64_unchecked(&mut self) -> i64 {
+        buf_get_impl_unchecked!(self, i64::from_be_bytes);
+    }
+
     /// Gets a signed 64 bit integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by 8.
@@ -668,6 +809,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_i64_le(&mut self) -> i64 {
         buf_get_impl!(self, i64::from_le_bytes);
+    }
+
+    fn get_i64_le_unchecked(&mut self) -> i64 {
+        buf_get_impl_unchecked!(self, i64::from_le_bytes);
     }
 
     /// Gets a signed 64 bit integer from `self` in native-endian byte order.
@@ -693,6 +838,10 @@ pub trait Buf {
         buf_get_impl!(self, i64::from_ne_bytes);
     }
 
+    fn get_i64_ne_unchecked(&mut self) -> i64 {
+        buf_get_impl_unchecked!(self, i64::from_ne_bytes);
+    }
+
     /// Gets an unsigned 128 bit integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by 16.
@@ -713,6 +862,10 @@ pub trait Buf {
         buf_get_impl!(self, u128::from_be_bytes);
     }
 
+    fn get_u128_unchecked(&mut self) -> u128 {
+        buf_get_impl_unchecked!(self, u128::from_be_bytes);
+    }
+
     /// Gets an unsigned 128 bit integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by 16.
@@ -731,6 +884,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_u128_le(&mut self) -> u128 {
         buf_get_impl!(self, u128::from_le_bytes);
+    }
+
+    fn get_u128_le_unchecked(&mut self) -> u128 {
+        buf_get_impl_unchecked!(self, u128::from_le_bytes);
     }
 
     /// Gets an unsigned 128 bit integer from `self` in native-endian byte order.
@@ -756,6 +913,10 @@ pub trait Buf {
         buf_get_impl!(self, u128::from_ne_bytes);
     }
 
+    fn get_u128_ne_unchecked(&mut self) -> u128 {
+        buf_get_impl_unchecked!(self, u128::from_ne_bytes);
+    }
+
     /// Gets a signed 128 bit integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by 16.
@@ -776,6 +937,10 @@ pub trait Buf {
         buf_get_impl!(self, i128::from_be_bytes);
     }
 
+    fn get_i128_unchecked(&mut self) -> i128 {
+        buf_get_impl_unchecked!(self, i128::from_be_bytes);
+    }
+
     /// Gets a signed 128 bit integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by 16.
@@ -794,6 +959,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_i128_le(&mut self) -> i128 {
         buf_get_impl!(self, i128::from_le_bytes);
+    }
+
+    fn get_i128_le_unchecked(&mut self) -> i128 {
+        buf_get_impl_unchecked!(self, i128::from_le_bytes);
     }
 
     /// Gets a signed 128 bit integer from `self` in native-endian byte order.
@@ -819,6 +988,10 @@ pub trait Buf {
         buf_get_impl!(self, i128::from_ne_bytes);
     }
 
+    fn get_i128_ne_unchecked(&mut self) -> i128 {
+        buf_get_impl_unchecked!(self, i128::from_ne_bytes);
+    }
+
     /// Gets an unsigned n-byte integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by `nbytes`.
@@ -839,6 +1012,10 @@ pub trait Buf {
         buf_get_impl!(be => self, u64, nbytes);
     }
 
+    fn get_uint_unchecked(&mut self, nbytes: usize) -> u64 {
+        buf_get_impl_unchecked!(be => self, u64, nbytes);
+    }
+
     /// Gets an unsigned n-byte integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by `nbytes`.
@@ -857,6 +1034,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_uint_le(&mut self, nbytes: usize) -> u64 {
         buf_get_impl!(le => self, u64, nbytes);
+    }
+
+    fn get_uint_le_unchecked(&mut self, nbytes: usize) -> u64 {
+        buf_get_impl_unchecked!(le => self, u64, nbytes);
     }
 
     /// Gets an unsigned n-byte integer from `self` in native-endian byte order.
@@ -886,6 +1067,14 @@ pub trait Buf {
         }
     }
 
+    fn get_uint_ne_unchecked(&mut self, nbytes: usize) -> u64 {
+        if cfg!(target_endian = "big") {
+            self.get_uint_unchecked(nbytes)
+        } else {
+            self.get_uint_le_unchecked(nbytes)
+        }
+    }
+
     /// Gets a signed n-byte integer from `self` in big-endian byte order.
     ///
     /// The current position is advanced by `nbytes`.
@@ -906,6 +1095,10 @@ pub trait Buf {
         buf_get_impl!(be => self, i64, nbytes);
     }
 
+    fn get_int_unchecked(&mut self, nbytes: usize) -> i64 {
+        buf_get_impl_unchecked!(be => self, i64, nbytes);
+    }
+
     /// Gets a signed n-byte integer from `self` in little-endian byte order.
     ///
     /// The current position is advanced by `nbytes`.
@@ -924,6 +1117,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_int_le(&mut self, nbytes: usize) -> i64 {
         buf_get_impl!(le => self, i64, nbytes);
+    }
+
+    fn get_int_le_unchecked(&mut self, nbytes: usize) -> i64 {
+        buf_get_impl_unchecked!(le => self, i64, nbytes);
     }
 
     /// Gets a signed n-byte integer from `self` in native-endian byte order.
@@ -953,6 +1150,14 @@ pub trait Buf {
         }
     }
 
+    fn get_int_ne_unchecked(&mut self, nbytes: usize) -> i64 {
+        if cfg!(target_endian = "big") {
+            self.get_int_unchecked(nbytes)
+        } else {
+            self.get_int_le_unchecked(nbytes)
+        }
+    }
+
     /// Gets an IEEE754 single-precision (4 bytes) floating point number from
     /// `self` in big-endian byte order.
     ///
@@ -974,6 +1179,10 @@ pub trait Buf {
         f32::from_bits(Self::get_u32(self))
     }
 
+    fn get_f32_unchecked(&mut self) -> f32 {
+        f32::from_bits(Self::get_u32_unchecked(self))
+    }
+
     /// Gets an IEEE754 single-precision (4 bytes) floating point number from
     /// `self` in little-endian byte order.
     ///
@@ -993,6 +1202,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_f32_le(&mut self) -> f32 {
         f32::from_bits(Self::get_u32_le(self))
+    }
+
+    fn get_f32_le_unchecked(&mut self) -> f32 {
+        f32::from_bits(Self::get_u32_le_unchecked(self))
     }
 
     /// Gets an IEEE754 single-precision (4 bytes) floating point number from
@@ -1019,6 +1232,10 @@ pub trait Buf {
         f32::from_bits(Self::get_u32_ne(self))
     }
 
+    fn get_f32_ne_unchecked(&mut self) -> f32 {
+        f32::from_bits(Self::get_u32_ne_unchecked(self))
+    }
+
     /// Gets an IEEE754 double-precision (8 bytes) floating point number from
     /// `self` in big-endian byte order.
     ///
@@ -1040,6 +1257,10 @@ pub trait Buf {
         f64::from_bits(Self::get_u64(self))
     }
 
+    fn get_f64_unchecked(&mut self) -> f64 {
+        f64::from_bits(Self::get_u64_unchecked(self))
+    }
+
     /// Gets an IEEE754 double-precision (8 bytes) floating point number from
     /// `self` in little-endian byte order.
     ///
@@ -1059,6 +1280,10 @@ pub trait Buf {
     /// This function panics if there is not enough remaining data in `self`.
     fn get_f64_le(&mut self) -> f64 {
         f64::from_bits(Self::get_u64_le(self))
+    }
+
+    fn get_f64_le_unchecked(&mut self) -> f64 {
+        f64::from_bits(Self::get_u64_le_unchecked(self))
     }
 
     /// Gets an IEEE754 double-precision (8 bytes) floating point number from
@@ -1085,6 +1310,10 @@ pub trait Buf {
         f64::from_bits(Self::get_u64_ne(self))
     }
 
+    fn get_f64_ne_unchecked(&mut self) -> f64 {
+        f64::from_bits(Self::get_u64_ne_unchecked(self))
+    }
+
     /// Consumes `len` bytes inside self and returns new instance of `Bytes`
     /// with this data.
     ///
@@ -1104,6 +1333,14 @@ pub trait Buf {
         use super::BufMut;
 
         assert!(len <= self.remaining(), "`len` greater than remaining");
+
+        let mut ret = crate::BytesMut::with_capacity(len);
+        ret.put(self.take(len));
+        ret.freeze()
+    }
+
+    fn copy_to_bytes_unchecked(&mut self, len: usize) -> crate::Bytes {
+        use super::BufMut;
 
         let mut ret = crate::BytesMut::with_capacity(len);
         ret.put(self.take(len));
@@ -1210,6 +1447,10 @@ macro_rules! deref_forward_buf {
 
         fn advance(&mut self, cnt: usize) {
             (**self).advance(cnt)
+        }
+
+        fn advance_unchecked(&mut self, cnt: usize) {
+            (**self).advance_unchecked(cnt)
         }
 
         fn has_remaining(&self) -> bool {
@@ -1353,6 +1594,11 @@ impl Buf for &[u8] {
     fn advance(&mut self, cnt: usize) {
         *self = &self[cnt..];
     }
+
+    #[inline]
+    fn advance_unchecked(&mut self, cnt: usize) {
+        *self = &self[cnt..];
+    }
 }
 
 #[cfg(feature = "std")]
@@ -1385,6 +1631,12 @@ impl<T: AsRef<[u8]>> Buf for std::io::Cursor<T> {
             .expect("overflow");
 
         assert!(pos <= self.get_ref().as_ref().len());
+        self.set_position(pos as u64);
+    }
+
+    fn advance_unchecked(&mut self, cnt: usize) {
+        let pos = (self.position() as usize) + cnt;
+
         self.set_position(pos as u64);
     }
 }

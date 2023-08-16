@@ -164,6 +164,10 @@ where
         self.b.advance(cnt);
     }
 
+    fn advance_unchecked(&mut self, mut cnt: usize) {
+        self.advance(cnt);
+    }
+
     #[cfg(feature = "std")]
     fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
         let mut n = self.a.chunks_vectored(dst);

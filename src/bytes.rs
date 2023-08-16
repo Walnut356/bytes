@@ -513,6 +513,12 @@ impl Bytes {
         self.len -= by;
         self.ptr = self.ptr.add(by);
     }
+
+    #[inline]
+    unsafe fn inc_start_unchecked(&mut self, by: usize) {
+        self.len -= by;
+        self.ptr = self.ptr.add(by);
+    }
 }
 
 // Vtable must enforce this behavior
@@ -555,6 +561,13 @@ impl Buf for Bytes {
 
         unsafe {
             self.inc_start(cnt);
+        }
+    }
+
+    #[inline]
+    fn advance_unchecked(&mut self, cnt: usize) {
+        unsafe {
+            self.inc_start_unchecked(cnt);
         }
     }
 

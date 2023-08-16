@@ -1077,6 +1077,13 @@ impl Buf for BytesMut {
     fn copy_to_bytes(&mut self, len: usize) -> crate::Bytes {
         self.split_to(len).freeze()
     }
+
+    #[inline]
+    fn advance_unchecked(&mut self, cnt: usize) {
+        unsafe {
+            self.set_start(cnt);
+        }
+    }
 }
 
 unsafe impl BufMut for BytesMut {

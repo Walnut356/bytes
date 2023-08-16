@@ -90,6 +90,10 @@ fn test_deref_buf_forwards() {
             unreachable!("advance");
         }
 
+        fn advance_unchecked(&mut self, _: usize) {
+            unreachable!("advance_unchecked");
+        }
+
         fn get_u8(&mut self) -> u8 {
             // specialized!
             b'x'

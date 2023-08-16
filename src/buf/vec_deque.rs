@@ -19,4 +19,8 @@ impl Buf for VecDeque<u8> {
     fn advance(&mut self, cnt: usize) {
         self.drain(..cnt);
     }
+
+    fn advance_unchecked(&mut self, cnt: usize) {
+        self.advance(cnt)
+    }
 }
