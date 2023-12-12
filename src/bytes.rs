@@ -567,6 +567,214 @@ impl Buf for Bytes {
             ret
         }
     }
+
+    #[inline]
+    fn get_u8(&mut self) -> u8 {
+        assert!(self.remaining() >= 1);
+        let ret = unsafe { *(self.ptr)};
+        self.advance(1);
+        ret
+    }
+
+    #[inline]
+    fn get_i8(&mut self) -> i8 {
+        assert!(self.remaining() >= 1);
+        let ret = unsafe { *(self.ptr) } as i8;
+        self.advance(1);
+        ret
+    }
+
+    #[inline]
+    fn get_u16(&mut self) -> u16 {
+        assert!(self.len() >= 2);
+        let ret = u16::from_be(unsafe { (self.ptr as *const u16).read_unaligned() });
+        self.advance(2);
+        ret
+    }
+
+    #[inline]
+    fn get_u16_le(&mut self) -> u16 {
+        assert!(self.len() >= 2);
+        let ret = u16::from_le(unsafe { (self.ptr as *const u16).read_unaligned() });
+        self.advance(2);
+        ret
+    }
+
+    #[inline]
+    fn get_u16_ne(&mut self) -> u16 {
+        assert!(self.len() >= 2);
+        let ret = unsafe { (self.ptr as *const u16).read_unaligned() };
+        self.advance(2);
+        ret
+    }
+
+    #[inline]
+    fn get_i16(&mut self) -> i16 {
+        assert!(self.len() >= 2);
+        let ret = i16::from_be(unsafe { (self.ptr as *const i16).read_unaligned() });
+        self.advance(2);
+        ret
+    }
+
+    #[inline]
+    fn get_i16_le(&mut self) -> i16 {
+        assert!(self.len() >= 2);
+        let ret = i16::from_le(unsafe { (self.ptr as *const i16).read_unaligned() });
+        self.advance(2);
+        ret
+    }
+
+    #[inline]
+    fn get_i16_ne(&mut self) -> i16 {
+        assert!(self.len() >= 2);
+        let ret = unsafe { (self.ptr as *const i16).read_unaligned() };
+        self.advance(2);
+        ret
+    }
+
+    #[inline]
+    fn get_u32(&mut self) -> u32 {
+        assert!(self.len() >= 4);
+        let ret = u32::from_be(unsafe { *(self.ptr as *const u32) });
+        self.advance(4);
+        ret
+    }
+
+    #[inline]
+    fn get_u32_le(&mut self) -> u32 {
+        assert!(self.len() >= 4);
+        let ret = u32::from_le(unsafe { (self.ptr as *const u32).read_unaligned() });
+        self.advance(4);
+        ret
+    }
+
+    #[inline]
+    fn get_u32_ne(&mut self) -> u32 {
+        assert!(self.len() >= 4);
+        let ret = unsafe { (self.ptr as *const u32).read_unaligned() };
+        self.advance(4);
+        ret
+    }
+
+    #[inline]
+    fn get_i32(&mut self) -> i32 {
+        assert!(self.len() >= 4);
+        let ret = i32::from_be(unsafe { (self.ptr as *const i32).read_unaligned() });
+        self.advance(4);
+        ret
+    }
+
+    #[inline]
+    fn get_i32_le(&mut self) -> i32 {
+        assert!(self.len() >= 4);
+        let ret = i32::from_le(unsafe { (self.ptr as *const i32).read_unaligned() });
+        self.advance(4);
+        ret
+    }
+
+    #[inline]
+    fn get_i32_ne(&mut self) -> i32 {
+        assert!(self.len() >= 4);
+        let ret = unsafe { (self.ptr as *const i32).read_unaligned() };
+        self.advance(4);
+        ret
+    }
+
+    #[inline]
+    fn get_u64(&mut self) -> u64 {
+        assert!(self.len() >= 8);
+        let ret = u64::from_be(unsafe { (self.ptr as *const u64).read_unaligned() });
+        self.advance(8);
+        ret
+    }
+
+    #[inline]
+    fn get_u64_le(&mut self) -> u64 {
+        assert!(self.len() >= 8);
+        let ret = u64::from_le(unsafe { (self.ptr as *const u64).read_unaligned() });
+        self.advance(8);
+        ret
+    }
+
+    #[inline]
+    fn get_u64_ne(&mut self) -> u64 {
+        assert!(self.len() >= 8);
+        let ret = unsafe { (self.ptr as *const u64).read_unaligned() };
+        self.advance(8);
+        ret
+    }
+
+    #[inline]
+    fn get_i64(&mut self) -> i64 {
+        assert!(self.len() >= 8);
+        let ret = i64::from_be(unsafe { (self.ptr as *const i64).read_unaligned() });
+        self.advance(8);
+        ret
+    }
+
+    #[inline]
+    fn get_i64_le(&mut self) -> i64 {
+        assert!(self.len() >= 8);
+        let ret = i64::from_le(unsafe { (self.ptr as *const i64).read_unaligned() });
+        self.advance(8);
+        ret
+    }
+
+    #[inline]
+    fn get_i64_ne(&mut self) -> i64 {
+        assert!(self.len() >= 8);
+        let ret = unsafe { (self.ptr as *const i64).read_unaligned() };
+        self.advance(8);
+        ret
+    }
+
+    #[inline]
+    fn get_u128(&mut self) -> u128 {
+        assert!(self.len() >= 16);
+        let ret = u128::from_be(unsafe { (self.ptr as *const u128).read_unaligned() });
+        self.advance(16);
+        ret
+    }
+
+    #[inline]
+    fn get_u128_le(&mut self) -> u128 {
+        assert!(self.len() >= 16);
+        let ret = u128::from_le(unsafe { (self.ptr as *const u128).read_unaligned() });
+        self.advance(16);
+        ret
+    }
+
+    #[inline]
+    fn get_u128_ne(&mut self) -> u128 {
+        assert!(self.len() >= 16);
+        let ret = unsafe { (self.ptr as *const u128).read_unaligned() };
+        self.advance(16);
+        ret
+    }
+
+    #[inline]
+    fn get_i128(&mut self) -> i128 {
+        assert!(self.len() >= 16);
+        let ret = i128::from_be(unsafe { (self.ptr as *const i128).read_unaligned() });
+        self.advance(16);
+        ret
+    }
+
+    #[inline]
+    fn get_i128_le(&mut self) -> i128 {
+        assert!(self.len() >= 16);
+        let ret = i128::from_le(unsafe { (self.ptr as *const i128).read_unaligned() });
+        self.advance(16);
+        ret
+    }
+
+    #[inline]
+    fn get_i128_ne(&mut self) -> i128 {
+        assert!(self.len() >= 16);
+        let ret = unsafe { (self.ptr as *const i128).read_unaligned() };
+        self.advance(16);
+        ret
+    }
 }
 
 impl Deref for Bytes {
